@@ -96,28 +96,32 @@ je 1b
  # 执行一个协处理器指令，出错，表明不存在协处理器。
  ############################################
 
-movl %cr0,%eax  # check math chip
+movl %cr0,%eax        # check math chip
 andl $0x80000011,%eax # Save PG,PE,ET
+
 /* "orl $0x10020,%eax" here for 486 might be good */
-orl $2,%eax # set MP
+orl $2,%eax           # set MP
 movl %eax,%cr0
 call check_x87
 jmp after_page_tables
+
 /*
  * We depend on ET to be correct. This checks for 287/387.
  */
+
 check_x87:
-fninit
-fstsw %ax
-cmpb $0,%al
-je 1f /* no coprocessor: have to set bits */
-movl %cr0,%eax
-xorl $6,%eax  /* reset MP, set EM */
-movl %eax,%cr0
-ret
+  fninit
+  fstsw %ax
+  cmpb $0,%al
+  je 1f             /* no coprocessor: have to set bits */
+  movl %cr0,%eax
+  xorl $6,%eax      /* reset MP, set EM */
+  movl %eax,%cr0
+  ret
 .align 2
 1:  .byte 0xDB,0xE4 /* fsetpm for 287, ignored by 387 */
-ret
+  ret
+
 ####################################################
 /*
  *  setup_idt
@@ -156,6 +160,7 @@ rp_sidt:
   jne rp_sidt
   lidt idt_descr            # 加载idt，其中idt_descr在下面定义。
   ret
+
 /*
  *  setup_gdt
  *
@@ -213,17 +218,21 @@ _tmp_floppy_area: # 用作dma缓冲区，_tmp_floppy_area内存供
 # 执行ret指令返回指令时就会将main.c程序的地址弹出堆栈，并去执行main.c
 # 程序去了。
 #
+
 after_page_tables:
+
 # 这些是调用main程序的参数。
-pushl $0  # These are the parameters to main :-)
-pushl $0
-pushl $0
-pushl $L6 # return address for main, if it decides to.
-pushl $_main  # _main是编译程序对main的内部表示方法。
-jmp setup_paging
-L6:
-jmp L6  # main should never return here, but
-# just in case, we know what happens.
+
+  pushl $0          # These are the parameters to main :-)
+  pushl $0
+  pushl $0
+  pushl $L6         # return address for main, if it decides to.
+  pushl $_main      # _main是编译程序对main的内部表示方法。
+  jmp setup_paging
+  L6:
+  jmp L6            # main should never return here, but
+                    # just in case, we know what happens.
+
 /* This is the default interrupt "handler" :-) */
 # 下面是默认的中断向量句柄。
 int_msg:
@@ -251,6 +260,7 @@ ignore_int:
   popl %ecx
   popl %eax
   iret                # 中断返回，吧中断调用是压入栈的 cpu 标志寄存器的值夜弹出。
+
 /*
  * Setup_paging
  *
@@ -279,54 +289,68 @@ ignore_int:
  # ，并设置各个页表内容。
  #
  #
+
 .align 2  # 按4字节方式对其内存地址边界。
-setup_paging: # 首先对5页清0
-movl $1024*5,%ecx /* 5 pages - pg_dir+4 page tables */
-xorl %eax,%eax
-xorl %edi,%edi  /* pg_dir is at 0x000 */
-cld
-rep
-#stosl等指令表示将一段内存（源）中的数据复制到另一段内存（目标）中去。
-stosl
+setup_paging:       # 首先对5页清0
+  movl $1024*5,%ecx /* 5 pages - pg_dir+4 page tables */
+  xorl %eax,%eax
+  xorl %edi,%edi    /* pg_dir is at 0x000 */
+  cld
+  rep
+  #stosl等指令表示将一段内存（源）中的数据复制到另一段内存（目标）中去。
+  stosl
+
 ##############################################################
 # 下面四句设置页目录项，我们共有4个页表，所以只需要设置4项。
 # 页目录的结构与页表中的项的结构是相同的，4个字节为1项。
-# $pg0 + 7表示0x00001007，是页目录表的第一项。
-# 则第一页表所在的地址0x00001007 & 0xfffff000 = 0x1000
+# $pg0 + 7表示 0x00001007，是页目录表的第一项。
+# 则第一页表所在的地址 0x00001007 & 0xfffff000 = 0x1000
 # 第一页的属性标志是 0x00001007 & 0x00000fff = 0x07，表示
 # 该页存在，用户可以读写。
-movl $pg0+7,_pg_dir /* set present bit/user r/w */
-movl $pg1+7,_pg_dir+4 /*  --------- " " --------- */
-movl $pg2+7,_pg_dir+8 /*  --------- " " --------- */
-movl $pg3+7,_pg_dir+12  /*  --------- " " --------- */
+# 以下几行中的 7 应看成二进制的 111，是页属性，
+# 代表 u/s, r/w, present
+# 111 代表：用户 u，读写 rw，存在 p
+# 000 代表：内核 s，只读 r ，不存在 
 ##############################################################
-#############################################################
+
+  movl $pg0+7,_pg_dir     /* set present bit/user r/w */
+  movl $pg1+7,_pg_dir+4   /*  --------- " " --------- */
+  movl $pg2+7,_pg_dir+8   /*  --------- " " --------- */
+  movl $pg3+7,_pg_dir+12  /*  --------- " " --------- */
+
+#########################################################
 # 下面的代码段填写4个页表中所有的项内容。
 #
 # 每项的内容是，当前项所映射的物理内存地址 + 该页的标志。
-movl $pg3+4092,%edi # edi -> 最后一页的最后一项
-movl $0xfff007,%eax /*  16Mb - 4096 + 7 (r/w user,p) */
-std # 方向置位，edi自减。
-1:  stosl /* fill pages backwards - more efficient :-) */
-subl $0x1000,%eax # 每填好一项，地址自减。
-jge 1b  # 如果小于0，则表示全部填好。
 ##########################################################
-# 设置也目录基址寄存器cr3的值，指向页目录表。
-xorl %eax,%eax  /* pg_dir is at 0x0000 */
-# 页目录在0x0000处
-movl %eax,%cr3  /* cr3 - page directory start */
-# 设置启动分页处理功能。
-movl %cr0,%eax
-orl $0x80000000,%eax
-movl %eax,%cr0  /* set paging (PG) bit */
+
+  movl $pg3+4092,%edi     # edi -> 最后一页的最后一项
+  movl $0xfff007,%eax     /*  16Mb - 4096 + 7 (r/w user,p) */
+  std                     # 方向置位，edi自减。
+1:  stosl                 /* fill pages backwards - more efficient :-) */
+  subl $0x1000,%eax       # 每填好一项，地址自减。
+  jge 1b                  # 如果小于0，则表示全部填好。
+
+  # 设置也目录基址寄存器cr3的值，指向页目录表。
+
+  xorl %eax,%eax          /* pg_dir is at 0x0000 */
+                          # 页目录在0x0000处
+  movl %eax,%cr3          /* cr3 - page directory start */
+                          # 设置启动分页处理功能。
+  movl %cr0,%eax
+  orl $0x80000000,%eax
+  movl %eax,%cr0          /* set paging (PG) bit */
+
 #########################################################
 # 在改变分页处理标志之后，要求使用转移指令来刷新予取指令队列，
 # 这里使用的是指令ret。该返回指令的另一个作用是将堆栈中的main
 # 程序的返回地址弹出，并开始运行/init/main.c程序。
 #
 # 呵呵，启动程序终于完了。
-ret /* this also flushes prefetch-queue */
 ##########################################################
+
+  ret                     /* this also flushes prefetch-queue */
+
 
 .align 2            # 按4字节方式对齐内存边界地址
 .word 0
@@ -363,32 +387,32 @@ _gdt: .quad 0x0000000000000000  /* NULL descriptor */
 # 的详细映像如下 :
 #
 # 1-----------------------------1
-# 1       .........                    1
+# 1       .........             1
 # 1-----------------------------1
-# 1      lib模块代码               1
+# 1      lib 模块代码             1
 # 1-----------------------------1
-# 1      mm模块代码             1
+# 1      mm模块代码               1
 # 1-----------------------------1
-# 1      kernel模块代码         1
+# 1      kernel模块代码           1
 # 1-----------------------------1
 # 1        main.c程序            1
 # 1-----------------------------1
-# 1           gdt                    1
+# 1           gdt               1
 # 1-----------------------------1
-# 1           idt                     1
+# 1           idt               1
 # 1-----------------------------1
-# 1        head.s部分代码     1
+# 1        head.s部分代码         1
 # 1-----------------------------1
-# 1        软盘缓冲区 1k        1
+# 1        软盘缓冲区 1k          1
 # 1-----------------------------1
-# 1        内存页表 pg3         1
+# 1        内存页表 pg3           1
 # 1-----------------------------1
-# 1         pg2                      1
+# 1         pg2                 1
 # 1-----------------------------1
-# 1         pg1                     1
+# 1         pg1                 1
 # 1-----------------------------1
-# 1         pg0                     1
+# 1         pg0                 1
 # 1-----------------------------1
-# 1         内存页目录表        1
+# 1         内存页目录表          1
 # 1-----------------------------1
-参考《linux内核完全注释》和网上相关文章
+# 参考《linux内核完全注释》和网上相关文章
