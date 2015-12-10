@@ -129,6 +129,7 @@ start:
  !重复执行 cx 次。
  rep
  !移动一个字
+ !zr: 这个 movw 命令相当于是 mov ds, es
  movw
 
  !此时的内存使用情况如下 :
@@ -146,28 +147,30 @@ start:
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 !在将自己成功移动之后，下面的几步是为下面加载setup程序做准备。
 !
-!在执行 jmpi 指令时，cs 段会被自动更新。注意的是 cs 寄存器在 call 或者是 jmp 指令时会自动更新。将 ds es ss 都
-!设置成代码所在的段。
+!在执行 jmpi 指令时，cs 段会被自动更新。
+!需要注意的是 cs 寄存器在 call 或者是 jmp 指令时会自动更新。
+!将 ds es ss 都设置成代码所在的段。
+!zr: cs 的值为 0x0900
+!zr: cs 代码段寄存器，ds 数据段寄存器，es 附加段寄存器，ss 栈基址寄存器
 go: mov ax,cs
  mov ds,ax
  mov es,ax
 
-!将堆栈指针 sp 指向 0x9ff00 (0x9000 : 0xff00)
+! 将堆栈指针 sp 指向 0x9ff00 (0x9000 : 0xff00)
 ! put stack at 0x9ff00.
-!SS 被成为堆栈段寄存器，用于存放堆栈段的基值.
+! ss 被成为堆栈段寄存器，用于存放堆栈段的基值.
  mov ss,ax
 
 !代码段的移动，需要重新设置堆栈段的位置。sp 只要指向远大于 512 任意处都可以。
- mov sp,#0xFF00  ! arbitrary value >>512
+ mov sp,#0xFF00  ! arbitrary value >> 512
+! load the setup-sectors directly after the bootblock.
+! Note that 'es' is already set up.
+!
 !////////////////////////////////////////////////////////////////////////////////////////////////
 
 !在 bootsect 程序块后紧随着加载 setup 模块。注意 es 已经设置好了。es 是指附加段寄存器。
 !附加段寄存器是 es，它的作用是很大的.
 !因为我们在处理数据的时候,往往需要用到两个数据段,特别是在字符串的处理方面,使用两个数据段简便了许多的操作.
-!
-! load the setup-sectors directly after the bootblock.
-! Note that 'es' is already set up.
-!
 !下面的这段代码的主要作用是使用int 0x13 把磁盘上的 setup 模块加载到内存中，
 !位置在 bootsect.s (0x90000 + 512字节)之后，
 !真个过程主要是操作寄存器 ax，bx，cx，dx 等四个寄存器。
@@ -338,7 +341,7 @@ ok_load_setup:
  !/////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////
-undef_root:         ! 死循环 - 死机
+undef_root:         ! 未定义跟设备号，死循环 - 死机
  jmp undef_root
 ////////////////////////////////////////////////////////
 
@@ -352,7 +355,7 @@ root_defined:
 ! the setup-routine loaded directly after
 ! the bootblock:
 ! 到此，所有的程序都加在完毕，我们就跳转到被加载在 bootsect 后面的 setup 程序去。 
-!
+
  jmpi 0,SETUPSEG  ! 跳转到0x9020 : 0000(setup.s的开始处)。
      ! 本程序到此结束。呵呵终于结束了。
 
