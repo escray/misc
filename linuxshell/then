@@ -1,0 +1,6 @@
+#!/bin/sh
+if grep -q daemon /etc/passwd; then
+	echo the daemon user is in the passwd file.
+else
+	echo there is a big program. daemon is not in the passwd file.
+fi

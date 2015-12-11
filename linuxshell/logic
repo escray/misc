@@ -1,0 +1,4 @@
+#!/bin/sh
+if [ "$1" = hi ] || [ "$1" = bye ]; then
+ echo 'the first arguent was "'$1'"'
+fi

@@ -1,0 +1,3 @@
+#!/bin/sh
+gs -q -dBATCH -dNOPAUSE -dSAFER \
+   -sOutputFile=- -sDEVICE=pnmraw $@

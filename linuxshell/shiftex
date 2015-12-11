@@ -1,0 +1,7 @@
+#!/bin/sh
+echo Argument: $1
+shift
+echo Argument: $1
+shift
+echo Argument: $1
+

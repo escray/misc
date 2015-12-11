@@ -1,0 +1,20 @@
+#!/bin/sh
+#FLAGS = $(grep ^flags /proc/cpuinfo | sed 's/.*://' | head -1)
+#FLAGS = $(grep ^flags /proc/cpuinfo | sed 's/.*://' | head -1)
+FLAGS = "fpu"
+echo $FLAGS
+echo Your processor supports:
+for f in $FLAGS; do
+	echo $f
+	case $f in
+		fpu) MSG="floating point unit"
+		;;
+		3dnow) MSG="3DNOW graphics extensions"
+		;;
+		mtrr) MSG="memory type range register"
+		;;
+		*) MSG="unknown"
+		;;
+	esac
+	echo $f: $MSG
+done
